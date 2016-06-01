@@ -472,6 +472,10 @@ func TestStructErrors(t *testing.T) {
 		t.Error("expected error parsing struct without key")
 	}
 
+	if _, ok := err.(SyntaxError); !ok {
+		t.Error("expected SyntaxError parsing struct without key")
+	}
+
 	err = Parse(url.Values{"Struct[": {"llama"}}, &e)
 	if err == nil {
 		t.Error("expected error parsing malformed struct key")

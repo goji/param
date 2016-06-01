@@ -77,7 +77,7 @@ func primitive(key, keytail string, tipe reflect.Type, values []string) {
 }
 
 func keyed(tipe reflect.Type, key, keytail string) (string, string) {
-	if keytail[0] != '[' {
+	if keytail == "" || keytail[0] != '[' {
 		panic(SyntaxError{
 			Key:       kpath(key, keytail),
 			Subtype:   MissingOpeningBracket,
