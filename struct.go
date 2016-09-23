@@ -37,7 +37,7 @@ func cacheStruct(t reflect.Type) structCache {
 		sf := t.Field(i)
 		// Only unexported fields have a PkgPath; we want to only cache
 		// exported fields.
-		if sf.PkgPath != "" {
+		if sf.PkgPath != "" && !sf.Anonymous {
 			continue
 		}
 		name := extractName(sf)
