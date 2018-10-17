@@ -5,9 +5,9 @@ import (
 	"reflect"
 )
 
-// TypeError is an error type returned when param has difficulty deserializing a
-// parameter value.
-type TypeError struct {
+// ValueError is an error type returned when param has difficulty deserializing
+// a parameter value.
+type ValueError struct {
 	// The key that was in error.
 	Key string
 	// The type that was expected.
@@ -17,9 +17,9 @@ type TypeError struct {
 	Err error
 }
 
-func (t TypeError) Error() string {
-	return fmt.Sprintf("param: error parsing key %q as %v: %v", t.Key, t.Type,
-		t.Err)
+func (v ValueError) Error() string {
+	return fmt.Sprintf("param: error parsing key %q as %v: %v",
+		v.Key, v.Type, v.Err)
 }
 
 // SingletonError is an error type returned when a parameter is passed multiple

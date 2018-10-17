@@ -108,7 +108,7 @@ func parseTextUnmarshaler(key, keytail string, values []string, target reflect.V
 	tu := target.Addr().Interface().(encoding.TextUnmarshaler)
 	err = tu.UnmarshalText([]byte(values[0]))
 	if err != nil {
-		return TypeError{
+		return ValueError{
 			Key:  kpath(key, keytail),
 			Type: target.Type(),
 			Err:  err,
@@ -132,7 +132,7 @@ func parseBool(key, keytail string, values []string, target reflect.Value) error
 		target.SetBool(false)
 		return nil
 	default:
-		return TypeError{
+		return ValueError{
 			Key:  kpath(key, keytail),
 			Type: target.Type(),
 		}
@@ -148,7 +148,7 @@ func parseInt(key, keytail string, values []string, target reflect.Value) error 
 
 	i, err := strconv.ParseInt(values[0], 10, t.Bits())
 	if err != nil {
-		return TypeError{
+		return ValueError{
 			Key:  kpath(key, keytail),
 			Type: t,
 			Err:  err.(*strconv.NumError).Err,
@@ -168,7 +168,7 @@ func parseUint(key, keytail string, values []string, target reflect.Value) error
 
 	i, err := strconv.ParseUint(values[0], 10, t.Bits())
 	if err != nil {
-		return TypeError{
+		return ValueError{
 			Key:  kpath(key, keytail),
 			Type: t,
 			Err:  err.(*strconv.NumError).Err,
@@ -188,7 +188,7 @@ func parseFloat(key, keytail string, values []string, target reflect.Value) erro
 
 	f, err := strconv.ParseFloat(values[0], t.Bits())
 	if err != nil {
-		return TypeError{
+		return ValueError{
 			Key:  kpath(key, keytail),
 			Type: t,
 			Err:  err.(*strconv.NumError).Err,
