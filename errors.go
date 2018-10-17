@@ -110,3 +110,20 @@ func (k KeyError) Error() string {
 	return fmt.Sprintf("param: error parsing key %q: unknown field %q on "+
 		"struct %q of type %v", k.FullKey, k.Field, k.Key, k.Type)
 }
+
+// InvalidParseError describes an invalid argument passed to Parse. It is always
+// the result of programmer error.
+type InvalidParseError struct {
+	Type reflect.Type
+	Hint string
+}
+
+func (err InvalidParseError) Error() string {
+	msg := fmt.Sprintf("param/parse: unsupported type %v", err.Type)
+
+	if err.Hint != "" {
+		msg += ": " + err.Hint
+	}
+
+	return msg
+}

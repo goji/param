@@ -26,34 +26,38 @@ import (
 )
 
 // Parse the given arguments into the the given pointer to a struct object.
-func Parse(params url.Values, target interface{}) (err error) {
+func Parse(params url.Values, target interface{}) error {
 	v := reflect.ValueOf(target)
 
-	defer func() {
-		if r := recover(); r != nil {
-			var ok bool
-			err, ok = r.(error)
-			if !ok {
-				panic(err)
-			}
-		}
-	}()
-
 	if v.Kind() != reflect.Ptr || v.Elem().Kind() != reflect.Struct {
-		pebkac("Target of param.Parse must be a pointer to a struct. "+
-			"We instead were passed a %v", v.Type())
+		hint := "target must be a pointer to a struct"
+		if v.Kind() == reflect.Ptr && v.IsNil() {
+			hint = "target may not be a nil pointer"
+		}
+
+		return InvalidParseError{
+			Type: v.Type(),
+			Hint: hint,
+		}
 	}
 
 	el := v.Elem()
 	t := el.Type()
-	cache := cacheStruct(t)
+	cache, err := cacheStruct(t)
+	if err != nil {
+		return err
+	}
 
 	for key, values := range params {
 		sk, keytail := key, ""
 		if i := strings.IndexRune(key, '['); i != -1 {
 			sk, keytail = sk[:i], sk[i:]
 		}
-		parseStructField(cache, key, sk, keytail, values, el)
+
+		err := parseStructField(cache, key, sk, keytail, values, el)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
