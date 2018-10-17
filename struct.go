@@ -1,6 +1,7 @@
 package param
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"sync"
@@ -16,19 +17,19 @@ import (
 type structCache map[string]cacheLine
 type cacheLine struct {
 	offset int
-	parse  func(string, string, []string, reflect.Value)
+	parse  func(string, string, []string, reflect.Value) error
 }
 
 var cacheLock sync.RWMutex
 var cache = make(map[reflect.Type]structCache)
 
-func cacheStruct(t reflect.Type) structCache {
+func cacheStruct(t reflect.Type) (structCache, error) {
 	cacheLock.RLock()
 	sc, ok := cache[t]
 	cacheLock.RUnlock()
 
 	if ok {
-		return sc
+		return sc, nil
 	}
 
 	// It's okay if two people build struct caches simultaneously
@@ -42,7 +43,12 @@ func cacheStruct(t reflect.Type) structCache {
 		}
 		name := extractName(sf)
 		if name != "-" {
-			sc[name] = cacheLine{i, extractHandler(t, sf)}
+			h, err := extractHandler(t, sf)
+			if err != nil {
+				return nil, err
+			}
+
+			sc[name] = cacheLine{i, h}
 		}
 	}
 
@@ -50,7 +56,7 @@ func cacheStruct(t reflect.Type) structCache {
 	cache[t] = sc
 	cacheLock.Unlock()
 
-	return sc
+	return sc, nil
 }
 
 // Extract the name of the given struct field, looking at struct tags as
@@ -71,51 +77,51 @@ func extractName(sf reflect.StructField) string {
 	return name
 }
 
-func extractHandler(s reflect.Type, sf reflect.StructField) func(string, string, []string, reflect.Value) {
+func extractHandler(s reflect.Type, sf reflect.StructField) (func(string, string, []string, reflect.Value) error, error) {
 	if reflect.PtrTo(sf.Type).Implements(textUnmarshalerType) {
-		return parseTextUnmarshaler
+		return parseTextUnmarshaler, nil
 	}
 
 	switch sf.Type.Kind() {
 	case reflect.Bool:
-		return parseBool
+		return parseBool, nil
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return parseInt
+		return parseInt, nil
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return parseUint
+		return parseUint, nil
 	case reflect.Float32, reflect.Float64:
-		return parseFloat
+		return parseFloat, nil
 	case reflect.Map:
-		return parseMap
+		return parseMap, nil
 	case reflect.Ptr:
-		return parsePtr
+		return parsePtr, nil
 	case reflect.Slice:
-		return parseSlice
+		return parseSlice, nil
 	case reflect.String:
-		return parseString
+		return parseString, nil
 	case reflect.Struct:
-		return parseStruct
-
+		return parseStruct, nil
 	default:
-		pebkac("struct %v has illegal field %q (type %v, kind %v).",
-			s, sf.Name, sf.Type, sf.Type.Kind())
-		return nil
+		return nil, InvalidParseError{
+			Type: s,
+			Hint: fmt.Sprintf("field %q in struct %v", sf.Name, s),
+		}
 	}
 }
 
 // We have to parse two types of structs: ones at the top level, whose keys
 // don't have square brackets around them, and nested structs, which do.
-func parseStructField(cache structCache, key, sk, keytail string, values []string, target reflect.Value) {
+func parseStructField(cache structCache, key, sk, keytail string, values []string, target reflect.Value) error {
 	l, ok := cache[sk]
 	if !ok {
-		panic(KeyError{
+		return KeyError{
 			FullKey: key,
 			Key:     kpath(key, keytail),
 			Type:    target.Type(),
 			Field:   sk,
-		})
+		}
 	}
-	f := target.Field(l.offset)
 
-	l.parse(key, keytail, values, f)
+	f := target.Field(l.offset)
+	return l.parse(key, keytail, values, f)
 }

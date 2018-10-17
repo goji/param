@@ -68,7 +68,10 @@ func TestNames(t *testing.T) {
 func TestCacheStruct(t *testing.T) {
 	t.Parallel()
 
-	sc := cacheStruct(fruityType)
+	sc, err := cacheStruct(fruityType)
+	if err != nil {
+		t.Errorf("Failed to cache struct: %v", err)
+	}
 
 	if len(sc) != len(fruityCache) {
 		t.Errorf("Cache has %d keys, but expected %d", len(sc),
@@ -99,7 +102,10 @@ func TestCacheStruct(t *testing.T) {
 func TestPrivate(t *testing.T) {
 	t.Parallel()
 
-	sc := cacheStruct(privateType)
+	sc, err := cacheStruct(privateType)
+	if err != nil {
+		t.Errorf("Failed to cache struct: %v", err)
+	}
 	if len(sc) != 1 {
 		t.Error("Expected Private{} to have one cachable field")
 	}

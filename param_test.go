@@ -71,7 +71,7 @@ func init() {
 	testTime, _ = time.Parse(time.RFC3339, testTimeString)
 }
 
-func singletonErrors(t *testing.T, field, valid, invalid string) {
+func singletonErrorsWithInvalid(t *testing.T, field, valid, invalid string) {
 	e := Everything{}
 
 	err := Parse(url.Values{field: {invalid}}, &e)
@@ -79,17 +79,23 @@ func singletonErrors(t *testing.T, field, valid, invalid string) {
 		t.Errorf("Expected error parsing %q as %s", invalid, field)
 	}
 
-	err = Parse(url.Values{field + "[]": {valid}}, &e)
+	singletonErrors(t, field, valid)
+}
+
+func singletonErrors(t *testing.T, field, val string) {
+	e := Everything{}
+
+	err := Parse(url.Values{field + "[]": {val}}, &e)
 	if err == nil {
 		t.Errorf("Expected error parsing nested %s", field)
 	}
 
-	err = Parse(url.Values{field + "[nested]": {valid}}, &e)
+	err = Parse(url.Values{field + "[nested]": {val}}, &e)
 	if err == nil {
 		t.Errorf("Expected error parsing nested %s", field)
 	}
 
-	err = Parse(url.Values{field: {valid, valid}}, &e)
+	err = Parse(url.Values{field: {val, val}}, &e)
 	if err == nil {
 		t.Errorf("Expected error passing %s twice", field)
 	}
@@ -122,7 +128,7 @@ func TestBoolTyped(t *testing.T) {
 
 func TestBoolErrors(t *testing.T) {
 	t.Parallel()
-	singletonErrors(t, "Bool", "true", "llama")
+	singletonErrorsWithInvalid(t, "Bool", "true", "llama")
 }
 
 var intAnswers = map[string]int{
@@ -158,7 +164,7 @@ func TestIntTyped(t *testing.T) {
 
 func TestIntErrors(t *testing.T) {
 	t.Parallel()
-	singletonErrors(t, "Int", "1", "llama")
+	singletonErrorsWithInvalid(t, "Int", "1", "llama")
 
 	e := Everything{}
 	err := Parse(url.Values{"Int": {"4.2"}}, &e)
@@ -199,7 +205,7 @@ func TestUintTyped(t *testing.T) {
 
 func TestUintErrors(t *testing.T) {
 	t.Parallel()
-	singletonErrors(t, "Uint", "1", "llama")
+	singletonErrorsWithInvalid(t, "Uint", "1", "llama")
 
 	e := Everything{}
 	err := Parse(url.Values{"Uint": {"4.2"}}, &e)
@@ -249,7 +255,7 @@ func TestFloatTyped(t *testing.T) {
 
 func TestFloatErrors(t *testing.T) {
 	t.Parallel()
-	singletonErrors(t, "Float", "1.0", "llama")
+	singletonErrorsWithInvalid(t, "Float", "1.0", "llama")
 }
 
 func TestMap(t *testing.T) {
@@ -434,6 +440,17 @@ func TestStringTyped(t *testing.T) {
 	assertEqual(t, "e.AString", MyString("llama"), e.AString)
 }
 
+func TestStringErrors(t *testing.T) {
+	t.Parallel()
+	singletonErrors(t, "String", "str")
+
+	e := Everything{}
+	err := Parse(url.Values{"Int": {"4.2"}}, &e)
+	if err == nil {
+		t.Error("Expected error parsing float as int")
+	}
+}
+
 func TestStruct(t *testing.T) {
 	t.Parallel()
 	e := Everything{}
@@ -500,10 +517,112 @@ func TestTextUnmarshaler(t *testing.T) {
 
 func TestTextUnmarshalerError(t *testing.T) {
 	t.Parallel()
-	e := Everything{}
 
-	err := Parse(url.Values{"Time": {"llama"}}, &e)
+	now := time.Now().Format(time.RFC3339)
+	singletonErrorsWithInvalid(t, "Time", now, "llama")
+}
+
+type Crazy struct {
+	A     *Crazy
+	B     *Crazy
+	Value int
+	Slice []int
+	Map   map[string]Crazy
+}
+
+func TestCrazy(t *testing.T) {
+	t.Parallel()
+
+	c := Crazy{}
+	err := Parse(url.Values{
+		"A[B][B][A][Value]":       {"1"},
+		"B[A][A][Slice][]":        {"3", "1", "4"},
+		"B[Map][hello][A][Value]": {"8"},
+		"A[Value]":                {"2"},
+		"A[Slice][]":              {"9", "1", "1"},
+		"Value":                   {"42"},
+	}, &c)
+	if err != nil {
+		t.Error("Error parsing craziness: ", err)
+	}
+
+	// Exhaustively checking everything here is going to be a huge pain, so
+	// let's just hope for the best, pretend NPEs don't exist, and hope that
+	// this test covers enough stuff that it's actually useful.
+	assertEqual(t, "c.A.B.B.A.Value", 1, c.A.B.B.A.Value)
+	assertEqual(t, "c.A.Value", 2, c.A.Value)
+	assertEqual(t, "c.Value", 42, c.Value)
+	assertEqual(t, `c.B.Map["hello"].A.Value`, 8, c.B.Map["hello"].A.Value)
+
+	assertEqual(t, "c.A.B.B.B", (*Crazy)(nil), c.A.B.B.B)
+	assertEqual(t, "c.A.B.A", (*Crazy)(nil), c.A.B.A)
+	assertEqual(t, "c.A.A", (*Crazy)(nil), c.A.A)
+
+	if c.Slice != nil || c.Map != nil {
+		t.Error("Map and Slice should not be set")
+	}
+
+	sl := c.B.A.A.Slice
+	if len(sl) != 3 || sl[0] != 3 || sl[1] != 1 || sl[2] != 4 {
+		t.Error("Something is wrong with c.B.A.A.Slice")
+	}
+	sl = c.A.Slice
+	if len(sl) != 3 || sl[0] != 9 || sl[1] != 1 || sl[2] != 1 {
+		t.Error("Something is wrong with c.A.Slice")
+	}
+}
+
+func TestParseNilPtr(t *testing.T) {
+	var s *struct{}
+
+	err := Parse(url.Values{"A": {"123"}}, s)
 	if err == nil {
-		t.Error("expected error parsing llama as time")
+		t.Errorf("Expected error parsing %T", s)
+	}
+}
+
+func TestUnsupportedStructKind(t *testing.T) {
+	var s struct {
+		Bad chan string
+	}
+
+	err := Parse(url.Values{"Bad": {"123"}}, &s)
+	if err == nil {
+		t.Errorf("Expected error parsing %T", s)
+	}
+}
+
+func TestUnsupportedNestedStruct(t *testing.T) {
+	var s struct {
+		Bad struct {
+			A chan string
+		}
+	}
+
+	err := Parse(url.Values{"Bad[A]": {"123"}}, &s)
+	if err == nil {
+		t.Errorf("Expected error parsing %T", s)
+	}
+}
+
+func TestUnsupportedParseKind(t *testing.T) {
+	var s struct {
+		Bad []chan string
+	}
+
+	err := Parse(url.Values{"Bad[]": {"123"}}, &s)
+	if err == nil {
+		t.Errorf("Expected error parsing %T", s)
+	}
+}
+
+func TestUnsupportedMapKey(t *testing.T) {
+	var s struct {
+		Bad map[int]int
+	}
+
+	err := Parse(url.Values{"Bad[123]": {"123"}}, &s)
+	if err == nil {
+		t.Errorf("Expected error parsing %T", s)
 	}
 }
