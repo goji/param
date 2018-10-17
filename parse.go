@@ -151,7 +151,7 @@ func parseInt(key, keytail string, values []string, target reflect.Value) error 
 		return TypeError{
 			Key:  kpath(key, keytail),
 			Type: t,
-			Err:  err,
+			Err:  err.(*strconv.NumError).Err,
 		}
 	}
 
@@ -171,7 +171,7 @@ func parseUint(key, keytail string, values []string, target reflect.Value) error
 		return TypeError{
 			Key:  kpath(key, keytail),
 			Type: t,
-			Err:  err,
+			Err:  err.(*strconv.NumError).Err,
 		}
 	}
 
@@ -191,7 +191,7 @@ func parseFloat(key, keytail string, values []string, target reflect.Value) erro
 		return TypeError{
 			Key:  kpath(key, keytail),
 			Type: t,
-			Err:  err,
+			Err:  err.(*strconv.NumError).Err,
 		}
 	}
 
